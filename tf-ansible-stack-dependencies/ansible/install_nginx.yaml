@@ -12,16 +12,22 @@
       set_fact:
         ansible_user: ec2-user
       when: ansible_os_family == "RedHat"
-  
+
+    # Gather service facts to check if nginx is available
+    - name: Gather service facts
+      ansible.builtin.service_facts:
+
   tasks:
-    - name: Install Nginx
+    - name: Install Nginx (RedHat)
       ansible.builtin.yum:
         name: nginx
         state: present
       when: ansible_os_family == "RedHat"
       
-    - name: install nginx
-      apt: name=nginx state=latest
+    - name: Install Nginx (Debian)
+      ansible.builtin.apt:
+        name: nginx
+        state: latest
       when: ansible_os_family == "Debian"
 
     - name: Create index.html
@@ -38,7 +44,21 @@
         mode: '0644'
 
     - name: Ensure Nginx is running and enabled
-      ansible.builtin.service:
+      ansible.builtin.systemd:
         name: nginx
         state: started
         enabled: yes
+      when: "'nginx' in ansible_facts.services"
+      # This condition ensures we only try to start the nginx service if it's installed.
+
+    - name: Start Nginx if it was installed but not running
+      ansible.builtin.systemd:
+        name: nginx
+        state: started
+      when: "'nginx' in ansible_facts.services" and ansible_facts.services['nginx']['state'] != 'running'
+
+    - name: Enable Nginx if it is not enabled
+      ansible.builtin.systemd:
+        name: nginx
+        enabled: yes
+      when: "'nginx' in ansible_facts.services" and ansible_facts.services['nginx']['enabled'] != True
